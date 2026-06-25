@@ -1,45 +1,46 @@
-# [Project name]
+# AI Coding Assistant
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A full-stack AI-powered coding assistant with a Python/CodeMirror editor and Gemini-powered chat.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `Start application` workflow — runs the FastAPI server at port 3000
+- Command: `cd artifacts/ai-coding-assistant && uvicorn main:app --host 0.0.0.0 --port 3000 --reload`
+- Required secret: `GEMINI_API_KEY` — Google Gemini API key (set in Replit Secrets)
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Backend: Python FastAPI + uvicorn (port 3000)
+- Frontend: Single HTML file with CodeMirror 5 (Dracula theme) + highlight.js
+- AI: Google Gemini 1.5 Flash via `google-genai` SDK
+- No npm/Node for the app itself — pure Python backend serving static HTML
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/ai-coding-assistant/main.py` — FastAPI app with `/chat`, `/run`, `/health` endpoints
+- `artifacts/ai-coding-assistant/static/index.html` — Full single-page frontend (editor + chat)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Uses `google-genai` (new SDK) instead of deprecated `google-generativeai`
+- Multi-turn chat maintained client-side (history array), last 20 turns sent per request
+- Python code execution via `asyncio.create_subprocess_exec` with 10s timeout
+- Static files served by FastAPI's `StaticFiles` mount at root `/`
+- No React, no npm — pure HTML/CSS/JS loaded from CDN
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Split-pane layout: left = CodeMirror Python editor, right = Gemini chat
+- Toolbar: Explain / Debug / Write Tests / Optimize / Run ▶ / Clear
+- Chat: typing indicator, code blocks with copy buttons, quick-action chips
+- Code runner: executes Python in subprocess, shows stdout/stderr with status
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+_Populate as you build._
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- `google-genai` (new) vs `google-generativeai` (deprecated) — always use `from google import genai`
+- Uvicorn hot-reload watches `artifacts/ai-coding-assistant/` directory
+- Port 3000 is the webview port routed through the shared Replit proxy
