@@ -79,7 +79,7 @@ async def chat(req: ChatRequest):
     try:
         def _send():
             chat_session = client.chats.create(
-                model="gemini-1.5-flash",
+                model="gemini-2.0-flash-lite",
                 config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
                 history=gemini_history,
             )
@@ -89,7 +89,24 @@ async def chat(req: ChatRequest):
         reply = await asyncio.to_thread(_send)
         return {"reply": reply}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        msg = str(e)
+        if "RESOURCE_EXHAUSTED" in msg or "quota" in msg.lower():
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Gemini API quota exhausted or limit is 0 for this API key. "
+                    "Please make sure your GEMINI_API_KEY was created at "
+                    "https://aistudio.google.com/app/apikey (Google AI Studio), "
+                    "not the Google Cloud Console. AI Studio keys have a free tier. "
+                    "If you already have an AI Studio key, you may have hit the daily limit — try again tomorrow."
+                ),
+            )
+        if "NOT_FOUND" in msg or "not found" in msg.lower():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Gemini model not found. Check that your API key is valid. Details: {msg}",
+            )
+        raise HTTPException(status_code=500, detail=msg)
 
 
 @app.post("/run")
