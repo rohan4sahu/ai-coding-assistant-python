@@ -1,13 +1,15 @@
 import os
-import subprocess
 import asyncio
+import subprocess
+import urllib.request
+import urllib.error
+import json
+import time
 from typing import Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from google import genai
-from google.genai import types
 
 load_dotenv()
 
@@ -15,7 +17,8 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise RuntimeError("GEMINI_API_KEY environment variable is not set")
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+MODEL = "gemini-2.0-flash"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={GEMINI_API_KEY}"
 
 app = FastAPI()
 
@@ -49,6 +52,47 @@ class RunRequest(BaseModel):
     language: Optional[str] = "python"
 
 
+def gemini_request(contents: list, retries: int = 3) -> str:
+    payload = {
+        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": contents,
+        "generationConfig": {"maxOutputTokens": 8192},
+    }
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        GEMINI_URL,
+        data=body,
+        headers={"Content-Type": "application/json"},
+    )
+    for attempt in range(retries):
+        try:
+            res = urllib.request.urlopen(req, timeout=30)
+            data = json.loads(res.read())
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except urllib.error.HTTPError as e:
+            body_text = e.read().decode()
+            if e.code == 429 and attempt < retries - 1:
+                wait = 2 ** attempt * 2
+                time.sleep(wait)
+                continue
+            try:
+                err = json.loads(body_text)
+                msg = err.get("error", {}).get("message", body_text)
+            except Exception:
+                msg = body_text
+            if e.code == 429:
+                raise RuntimeError(f"Rate limit hit — please wait a moment and try again. ({msg})")
+            if e.code == 401:
+                raise RuntimeError("Invalid API key. Please check your GEMINI_API_KEY.")
+            raise RuntimeError(f"Gemini API error {e.code}: {msg}")
+        except Exception as e:
+            if attempt < retries - 1:
+                time.sleep(1)
+                continue
+            raise
+    raise RuntimeError("Max retries exceeded")
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -65,48 +109,23 @@ async def chat(req: ChatRequest):
 
     full_prompt = prefix + user_message
 
-    # Build history for multi-turn
     history = req.history or []
     trimmed = history[-(MAX_HISTORY * 2):]
-    gemini_history = []
+    contents = []
     for turn in trimmed:
         role = turn.get("role", "user")
         content = turn.get("content", "")
-        gemini_history.append(
-            types.Content(role=role, parts=[types.Part(text=content)])
-        )
+        gemini_role = "model" if role == "model" else "user"
+        contents.append({"role": gemini_role, "parts": [{"text": content}]})
+    contents.append({"role": "user", "parts": [{"text": full_prompt}]})
 
     try:
-        def _send():
-            chat_session = client.chats.create(
-                model="gemini-2.0-flash-lite",
-                config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
-                history=gemini_history,
-            )
-            response = chat_session.send_message(full_prompt)
-            return response.text
-
-        reply = await asyncio.to_thread(_send)
+        reply = await asyncio.to_thread(gemini_request, contents)
         return {"reply": reply}
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
-        msg = str(e)
-        if "RESOURCE_EXHAUSTED" in msg or "quota" in msg.lower():
-            raise HTTPException(
-                status_code=429,
-                detail=(
-                    "Gemini API quota exhausted or limit is 0 for this API key. "
-                    "Please make sure your GEMINI_API_KEY was created at "
-                    "https://aistudio.google.com/app/apikey (Google AI Studio), "
-                    "not the Google Cloud Console. AI Studio keys have a free tier. "
-                    "If you already have an AI Studio key, you may have hit the daily limit — try again tomorrow."
-                ),
-            )
-        if "NOT_FOUND" in msg or "not found" in msg.lower():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Gemini model not found. Check that your API key is valid. Details: {msg}",
-            )
-        raise HTTPException(status_code=500, detail=msg)
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
 
 @app.post("/run")
