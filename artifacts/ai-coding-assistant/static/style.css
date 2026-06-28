@@ -125,6 +125,11 @@ header {
   border-top: 1px solid var(--border);
   background: var(--output-bg);
 }
+.stdin-label {
+  padding: 5px 14px 2px;
+  font-size: 0.7rem; font-weight: 600;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;
+}
 .stdin-area textarea {
   width: 100%; height: 64px; resize: none;
   background: transparent; border: none; outline: none;
