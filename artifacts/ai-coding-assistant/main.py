@@ -210,6 +210,7 @@ def gemini_stream(contents: list):
 
         yield f"data: [ERROR] {user_msg}\n\n"
 
+
 @app.post("/chat")
 async def chat(req: ChatRequest):
     action = req.action or "chat"
