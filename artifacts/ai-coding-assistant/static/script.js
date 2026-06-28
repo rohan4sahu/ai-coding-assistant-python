@@ -283,8 +283,7 @@ async function sendChat(message, action = 'chat') {
         const data = line.slice(6);
         if (data === '[DONE]') break outer;
         if (data.startsWith('[ERROR]')) {
-          const errMsg = data.slice(8).trim();
-          console.error('[Gemini stream error]', errMsg);
+          const errMsg = data.slice(7).trim();
           throw new Error(errMsg);
         }
         try {
@@ -414,6 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch {}
   }
 
+  // ── Restore saved API key and re-send to server on every page load ──
   const savedKey = localStorage.getItem('savedApiKey');
   if (savedKey) {
     document.getElementById('key-input').value = savedKey;
@@ -422,10 +422,19 @@ document.addEventListener('DOMContentLoaded', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ api_key: savedKey }),
     }).then(r => {
-      if (r.ok) setKeyActive(true);
-      else checkKeyStatus();
-    }).catch(() => checkKeyStatus());
+      if (r.ok) {
+        setKeyActive(true);
+      } else {
+        localStorage.removeItem('savedApiKey');
+        setKeyActive(false);
+        openKeyModal();
+      }
+    }).catch(() => {
+      setKeyActive(false);
+      openKeyModal();
+    });
   } else {
     checkKeyStatus();
+    openKeyModal();
   }
 });
