@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-3.1-flash-lite"
 
 _api_key: str = os.environ.get("GEMINI_API_KEY", "")
 
