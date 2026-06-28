@@ -40,7 +40,7 @@ https://ai-coding-assistant-python.onrender.com/
 
 ### AI
 
-* Google Gemini 2.0 Flash API
+* Google Gemini 3.1 Flash Lite API
 
 ### Deployment
 
