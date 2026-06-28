@@ -344,7 +344,7 @@ async function runCode() {
     const res = await fetch('/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, language: 'python' }),
+      body: JSON.stringify({ code, language: 'python', input: document.getElementById('stdin-input').value || null }),
     });
     const data = await res.json();
     scroll.innerHTML = '';
@@ -389,6 +389,11 @@ document.addEventListener('DOMContentLoaded', () => {
     editor.setValue(savedCode);
     editor.clearHistory();
   }
+
+  const stdinEl = document.getElementById('stdin-input');
+  const savedStdin = localStorage.getItem('savedStdin');
+  if (savedStdin !== null) stdinEl.value = savedStdin;
+  stdinEl.addEventListener('input', () => localStorage.setItem('savedStdin', stdinEl.value));
 
   const savedChat = localStorage.getItem('savedChat');
   if (savedChat) {

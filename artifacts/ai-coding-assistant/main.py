@@ -57,6 +57,7 @@ class ChatRequest(BaseModel):
 class RunRequest(BaseModel):
     code: str
     language: Optional[str] = "python"
+    input: Optional[str] = None
 
 
 class SetKeyRequest(BaseModel):
@@ -224,13 +225,15 @@ async def run_code(req: RunRequest):
         raise HTTPException(status_code=400, detail="Only Python execution is supported")
 
     try:
+        stdin_bytes = req.input.encode("utf-8") if req.input else None
         proc = await asyncio.create_subprocess_exec(
             "python3", "-c", req.code,
+            stdin=subprocess.PIPE if stdin_bytes else subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(input=stdin_bytes), timeout=10)
         except asyncio.TimeoutError:
             proc.kill()
             return {"output": "", "error": "Execution timed out after 10 seconds"}
