@@ -177,17 +177,30 @@ def gemini_stream(contents: list):
     except urllib.error.HTTPError as e:
         body_text = e.read().decode()
         try:
-            msg = json.loads(body_text).get("error", {}).get("message", body_text)
+            error_obj = json.loads(body_text).get("error", {})
+            msg = error_obj.get("message", body_text)
         except Exception:
+            error_obj = {}
             msg = body_text
+        msg_lower = msg.lower()
         if e.code == 429:
-            yield f"data: [ERROR] Rate limit hit — please wait a moment and try again.\n\n"
+            # Distinguish temporary RPM limit from daily quota exhaustion
+            if any(k in msg_lower for k in ("per_day", "daily", "day")):
+                user_msg = (
+                    "Daily Gemini API quota exhausted. Please try again after the quota "
+                    "resets or use another Gemini API key/project with available quota."
+                )
+            else:
+                user_msg = "Rate limit reached. Please wait about a minute and try again."
         elif e.code == 401:
-            yield "data: [ERROR] Invalid API key. Please re-enter your Gemini API key.\n\n"
+            user_msg = "Invalid Gemini API key. Please verify your API key and try again."
         else:
-            yield f"data: [ERROR] Gemini API error {e.code}: {msg}\n\n"
+            user_msg = "Gemini API returned an unexpected error. Please try again later."
+        yield f"data: [ERROR] {user_msg}\n\n"
+    except urllib.error.URLError:
+        yield "data: [ERROR] Unable to contact Gemini API. Please check your internet connection or try again later.\n\n"
     except Exception as e:
-        yield f"data: [ERROR] {e}\n\n"
+        yield "data: [ERROR] Gemini API returned an unexpected error. Please try again later.\n\n"
     yield "data: [DONE]\n\n"
 
 

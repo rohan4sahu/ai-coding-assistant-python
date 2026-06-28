@@ -282,7 +282,11 @@ async function sendChat(message, action = 'chat') {
         if (!line.startsWith('data: ')) continue;
         const data = line.slice(6);
         if (data === '[DONE]') break outer;
-        if (data.startsWith('[ERROR]')) throw new Error(data.slice(8).trim());
+        if (data.startsWith('[ERROR]')) {
+          const errMsg = data.slice(8).trim();
+          console.error('[Gemini stream error]', errMsg);
+          throw new Error(errMsg);
+        }
         try {
           const text = JSON.parse(data);
           rawReply += text;
