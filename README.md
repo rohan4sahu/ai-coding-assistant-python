@@ -10,7 +10,7 @@ https://ai-coding-assistant-python.onrender.com/
 
 ## ✨ Features
 
-* 🤖 AI-powered coding assistant using Google Gemini 2.0 Flash
+* 🤖 AI-powered coding assistant using Google Gemini 
 * 📝 Built-in Python code editor
 * ▶️ Execute Python code directly in the browser
 * ⌨️ Program input (stdin) support
