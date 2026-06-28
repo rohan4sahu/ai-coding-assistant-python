@@ -27,6 +27,7 @@ def get_streaming_url() -> str:
     return f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:streamGenerateContent?key={_api_key}&alt=sse"
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static_assets")
 
 SYSTEM_PROMPT = (
     "You are an expert coding assistant. You help users understand, debug, test, and optimize code. "
