@@ -175,42 +175,40 @@ def gemini_stream(contents: list):
                 except (KeyError, IndexError, json.JSONDecodeError):
                     continue
     except urllib.error.HTTPError as e:
-    body_text = e.read().decode()
+        body_text = e.read().decode()
 
-    print("\n" + "=" * 80)
-    print("GEMINI STREAM HTTP ERROR")
-    print("Status Code :", e.code)
-    print("Streaming URL :", get_streaming_url())
-    print("API Key Prefix :", _api_key[:8] + "..." if _api_key else "<EMPTY>")
-    print("Raw Response:")
-    print(body_text)
-    print("=" * 80 + "\n")
+        print("\n" + "=" * 80)
+        print("GEMINI STREAM HTTP ERROR")
+        print("Status Code :", e.code)
+        print("Streaming URL :", get_streaming_url())
+        print("API Key Prefix :", _api_key[:8] + "..." if _api_key else "<EMPTY>")
+        print("Raw Response:")
+        print(body_text)
+        print("=" * 80 + "\n")
 
-    try:
-        error_obj = json.loads(body_text).get("error", {})
-        msg = error_obj.get("message", body_text)
-    except Exception:
-        error_obj = {}
-        msg = body_text
+        try:
+            error_obj = json.loads(body_text).get("error", {})
+            msg = error_obj.get("message", body_text)
+        except Exception:
+            error_obj = {}
+            msg = body_text
 
-    msg_lower = msg.lower()
+        msg_lower = msg.lower()
 
-    if e.code == 429:
-        if any(k in msg_lower for k in ("per_day", "daily", "day")):
-            user_msg = (
-                "Daily Gemini API quota exhausted. Please try again after the quota resets "
-                "or use another Gemini API key/project."
-            )
+        if e.code == 429:
+            if any(k in msg_lower for k in ("per_day", "daily", "day")):
+                user_msg = (
+                    "Daily Gemini API quota exhausted. Please try again after the quota resets "
+                    "or use another Gemini API key/project."
+                )
+            else:
+                user_msg = "Rate limit reached. Please wait about a minute and try again."
+        elif e.code == 401:
+            user_msg = "Invalid Gemini API key. Please verify your API key."
         else:
-            user_msg = "Rate limit reached. Please wait about a minute and try again."
+            user_msg = f"Gemini API HTTP {e.code}. See Render logs."
 
-    elif e.code == 401:
-        user_msg = "Invalid Gemini API key. Please verify your API key."
-
-    else:
-        user_msg = f"Gemini API HTTP {e.code}. See Render logs."
-
-    yield f"data: [ERROR] {user_msg}\n\n"
+        yield f"data: [ERROR] {user_msg}\n\n"
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
