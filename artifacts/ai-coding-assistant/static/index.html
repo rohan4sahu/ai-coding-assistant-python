@@ -401,6 +401,7 @@ async function saveKey() {
       errEl.textContent = data.detail || 'Failed to verify key.';
       return;
     }
+    localStorage.setItem('savedApiKey', key);
     setKeyActive(true);
     closeKeyModal();
     appendMessage('assistant', '✅ API key saved! You can now chat and run AI actions.');
@@ -418,7 +419,45 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') saveKey();
     if (e.key === 'Escape') closeKeyModal();
   });
-  checkKeyStatus();
+
+  // Restore saved code
+  const savedCode = localStorage.getItem('savedCode');
+  if (savedCode !== null) {
+    editor.setValue(savedCode);
+    editor.clearHistory();
+  }
+
+  // Restore saved chat
+  const savedChat = localStorage.getItem('savedChat');
+  if (savedChat) {
+    try {
+      const msgs = JSON.parse(savedChat);
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        history = msgs;
+        msgs.forEach(m => {
+          const displayRole = m.role === 'model' ? 'assistant' : 'user';
+          const isAssistant = displayRole === 'assistant';
+          appendMessage(displayRole, isAssistant ? renderContent(m.content) : m.content, isAssistant);
+        });
+      }
+    } catch {}
+  }
+
+  // Restore saved API key — silently re-send to backend
+  const savedKey = localStorage.getItem('savedApiKey');
+  if (savedKey) {
+    document.getElementById('key-input').value = savedKey;
+    fetch('/set-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: savedKey }),
+    }).then(r => {
+      if (r.ok) setKeyActive(true);
+      else checkKeyStatus();
+    }).catch(() => checkKeyStatus());
+  } else {
+    checkKeyStatus();
+  }
 });
 
 // ── CodeMirror setup ──
@@ -451,6 +490,10 @@ for i in range(10):
 `,
 });
 editor.setValue(editor.getOption('value'));
+
+editor.on('change', () => {
+  localStorage.setItem('savedCode', editor.getValue());
+});
 
 // ── Chat state ──
 let history = [];
@@ -603,6 +646,7 @@ async function sendChat(message, action = 'chat') {
 
   appendMessage('user', msg);
   history.push({ role: 'user', content: msg });
+  localStorage.setItem('savedChat', JSON.stringify(history));
   setWaiting(true);
   showTyping();
 
@@ -611,6 +655,7 @@ async function sendChat(message, action = 'chat') {
     removeTyping();
     appendMessage('assistant', renderContent(reply), true);
     history.push({ role: 'model', content: reply });
+    localStorage.setItem('savedChat', JSON.stringify(history));
   } catch (e) {
     removeTyping();
     appendMessage('assistant', '⚠ Error: ' + e.message);
@@ -631,11 +676,12 @@ async function doAction(action) {
 function sendChip(msg) { sendChat(msg, 'chat'); }
 
 // ── Clear editor ──
-function clearEditor() { editor.setValue(''); editor.focus(); }
+function clearEditor() { editor.setValue(''); localStorage.removeItem('savedCode'); editor.focus(); }
 
 // ── Clear chat ──
 function clearChat() {
   history = [];
+  localStorage.removeItem('savedChat');
   const c = document.getElementById('chat-messages');
   c.innerHTML = '';
   appendMessage('assistant', 'Chat cleared. Ready to help!');
