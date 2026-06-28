@@ -614,29 +614,13 @@ function removeTyping() {
   if (el) el.remove();
 }
 
-// ── API call ──
-async function callChat(message, action = 'chat') {
-  const code = editor.getValue();
-  const payload = { message, code, history: history.slice(-40), action };
-  const res = await fetch('/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || 'Request failed');
-  }
-  return (await res.json()).reply;
-}
-
 function setWaiting(val) {
   isWaiting = val;
   document.getElementById('send-btn').disabled = val;
   chatInput.disabled = val;
 }
 
-// ── Send chat ──
+// ── Send chat (streaming) ──
 async function sendChat(message, action = 'chat') {
   const msg = (message || chatInput.value).trim();
   if (!msg || isWaiting) return;
@@ -650,12 +634,65 @@ async function sendChat(message, action = 'chat') {
   setWaiting(true);
   showTyping();
 
+  const code = editor.getValue();
+  const payload = { message: msg, code, history: history.slice(-40), action };
+
   try {
-    const reply = await callChat(msg, action);
+    const res = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || 'Request failed');
+    }
+
     removeTyping();
-    appendMessage('assistant', renderContent(reply), true);
-    history.push({ role: 'model', content: reply });
+
+    // Create streaming bubble
+    const container = document.getElementById('chat-messages');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'message assistant';
+    const label = document.createElement('div');
+    label.className = 'msg-label';
+    label.textContent = 'Assistant';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    msgDiv.appendChild(label);
+    msgDiv.appendChild(bubble);
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let rawReply = '';
+    let buf = '';
+
+    outer: while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6);
+        if (data === '[DONE]') break outer;
+        if (data.startsWith('[ERROR]')) throw new Error(data.slice(8).trim());
+        try {
+          const text = JSON.parse(data);
+          rawReply += text;
+          bubble.innerHTML = renderContent(rawReply);
+          container.scrollTop = container.scrollHeight;
+        } catch {}
+      }
+    }
+
+    history.push({ role: 'model', content: rawReply });
     localStorage.setItem('savedChat', JSON.stringify(history));
+
   } catch (e) {
     removeTyping();
     appendMessage('assistant', '⚠ Error: ' + e.message);

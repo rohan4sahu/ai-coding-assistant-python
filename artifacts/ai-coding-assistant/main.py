@@ -8,6 +8,7 @@ import time
 from typing import Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -21,6 +22,9 @@ _api_key: str = os.environ.get("GEMINI_API_KEY", "")
 
 def get_gemini_url() -> str:
     return f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={_api_key}"
+
+def get_streaming_url() -> str:
+    return f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:streamGenerateContent?key={_api_key}&alt=sse"
 
 app = FastAPI()
 
@@ -136,6 +140,55 @@ def health():
     return {"status": "ok"}
 
 
+def gemini_stream(contents: list):
+    """Generator that yields SSE chunks from Gemini's streaming endpoint."""
+    if not _api_key:
+        yield "data: [ERROR] No API key configured. Please enter your Gemini API key.\n\n"
+        return
+    payload = {
+        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": contents,
+        "generationConfig": {"maxOutputTokens": 8192},
+    }
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        get_streaming_url(),
+        data=body,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as res:
+            for raw_line in res:
+                line = raw_line.decode("utf-8").rstrip()
+                if not line.startswith("data: "):
+                    continue
+                data_str = line[6:]
+                if not data_str:
+                    continue
+                try:
+                    chunk = json.loads(data_str)
+                    text = chunk["candidates"][0]["content"]["parts"][0]["text"]
+                    if text:
+                        yield f"data: {json.dumps(text)}\n\n"
+                except (KeyError, IndexError, json.JSONDecodeError):
+                    continue
+    except urllib.error.HTTPError as e:
+        body_text = e.read().decode()
+        try:
+            msg = json.loads(body_text).get("error", {}).get("message", body_text)
+        except Exception:
+            msg = body_text
+        if e.code == 429:
+            yield f"data: [ERROR] Rate limit hit — please wait a moment and try again.\n\n"
+        elif e.code == 401:
+            yield "data: [ERROR] Invalid API key. Please re-enter your Gemini API key.\n\n"
+        else:
+            yield f"data: [ERROR] Gemini API error {e.code}: {msg}\n\n"
+    except Exception as e:
+        yield f"data: [ERROR] {e}\n\n"
+    yield "data: [DONE]\n\n"
+
+
 @app.post("/chat")
 async def chat(req: ChatRequest):
     action = req.action or "chat"
@@ -157,13 +210,11 @@ async def chat(req: ChatRequest):
         contents.append({"role": gemini_role, "parts": [{"text": content}]})
     contents.append({"role": "user", "parts": [{"text": full_prompt}]})
 
-    try:
-        reply = await asyncio.to_thread(gemini_request, contents)
-        return {"reply": reply}
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+    return StreamingResponse(
+        gemini_stream(contents),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/run")
