@@ -13,12 +13,14 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    raise RuntimeError("GEMINI_API_KEY environment variable is not set")
-
 MODEL = "gemini-2.0-flash"
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={GEMINI_API_KEY}"
+
+# Key is loaded from env at startup but can be updated at runtime via /set-key
+_api_key: str = os.environ.get("GEMINI_API_KEY", "")
+
+
+def get_gemini_url() -> str:
+    return f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={_api_key}"
 
 app = FastAPI()
 
@@ -52,7 +54,43 @@ class RunRequest(BaseModel):
     language: Optional[str] = "python"
 
 
+class SetKeyRequest(BaseModel):
+    api_key: str
+
+
+@app.post("/set-key")
+async def set_key(req: SetKeyRequest):
+    global _api_key
+    key = req.api_key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="API key cannot be empty")
+    # Quick validation — Gemini keys start with AIza or are OAuth tokens
+    # We do a lightweight probe to confirm the key actually works
+    test_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
+    try:
+        probe = urllib.request.urlopen(test_url, timeout=10)
+        probe.read()
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode()
+        try:
+            msg = json.loads(err_body).get("error", {}).get("message", err_body)
+        except Exception:
+            msg = err_body
+        raise HTTPException(status_code=400, detail=f"Key rejected by Gemini API: {msg}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not reach Gemini API: {e}")
+    _api_key = key
+    return {"status": "ok"}
+
+
+@app.get("/key-status")
+def key_status():
+    return {"configured": bool(_api_key)}
+
+
 def gemini_request(contents: list, retries: int = 3) -> str:
+    if not _api_key:
+        raise RuntimeError("No API key configured. Please enter your Gemini API key.")
     payload = {
         "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": contents,
@@ -60,7 +98,7 @@ def gemini_request(contents: list, retries: int = 3) -> str:
     }
     body = json.dumps(payload).encode()
     req = urllib.request.Request(
-        GEMINI_URL,
+        get_gemini_url(),
         data=body,
         headers={"Content-Type": "application/json"},
     )

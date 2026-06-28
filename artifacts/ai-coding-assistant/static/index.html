@@ -50,6 +50,56 @@
     background: rgba(124,106,247,0.18); color: var(--accent);
     border: 1px solid rgba(124,106,247,0.35); border-radius: 20px; letter-spacing: .03em;
   }
+  .key-btn {
+    padding: 5px 13px; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface2); color: var(--text-muted); transition: all .15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .key-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .key-btn.active { border-color: var(--success); color: var(--success); background: rgba(63,185,80,.08); }
+
+  /* ── KEY MODAL ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,.65); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 28px 28px 24px; width: 440px; max-width: calc(100vw - 32px);
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+  .modal h2 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+  .modal p { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 18px; line-height: 1.55; }
+  .modal p a { color: var(--accent); text-decoration: none; }
+  .modal p a:hover { text-decoration: underline; }
+  .key-field-wrap { position: relative; margin-bottom: 14px; }
+  .key-field-wrap input {
+    width: 100%; padding: 10px 44px 10px 12px; border-radius: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-size: 0.875rem; outline: none; font-family: monospace;
+    transition: border-color .15s;
+  }
+  .key-field-wrap input:focus { border-color: var(--accent); }
+  .key-field-wrap input::placeholder { font-family: inherit; color: var(--text-muted); }
+  .toggle-vis {
+    position: absolute; right: 11px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: var(--text-muted);
+    padding: 2px; transition: color .15s;
+  }
+  .toggle-vis:hover { color: var(--text); }
+  .modal-error { font-size: 0.78rem; color: var(--error); margin-bottom: 10px; min-height: 18px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-actions button {
+    padding: 8px 20px; border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer; border: none;
+  }
+  .btn-cancel { background: var(--surface2); color: var(--text-muted); }
+  .btn-cancel:hover { color: var(--text); }
+  .btn-save { background: var(--accent); color: #fff; transition: background .15s; }
+  .btn-save:hover { background: var(--accent-hover); }
+  .btn-save:disabled { opacity: .5; cursor: not-allowed; }
 
   /* ── MAIN LAYOUT ── */
   .main { display: flex; height: calc(100vh - 52px); }
@@ -198,7 +248,36 @@
     AI Coding Assistant
   </div>
   <span class="header-badge">Gemini 2.0 Flash</span>
+  <button class="key-btn" id="key-btn" onclick="openKeyModal()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+    <span id="key-btn-label">Set API Key</span>
+  </button>
 </header>
+
+<!-- ── API KEY MODAL ── -->
+<div class="modal-overlay" id="key-modal" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <h2>🔑 Gemini API Key</h2>
+    <p>
+      Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a> —
+      click <strong>Create API key → Create API key in new project</strong>.
+      Your key stays in this session only and is never logged.
+    </p>
+    <div class="key-field-wrap">
+      <input type="password" id="key-input" placeholder="AIza..." autocomplete="off" spellcheck="false" />
+      <button class="toggle-vis" onclick="toggleVis()" title="Show/hide key">
+        <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-error" id="modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeKeyModal()">Cancel</button>
+      <button class="btn-save" id="save-key-btn" onclick="saveKey()">Verify &amp; Save</button>
+    </div>
+  </div>
+</div>
 
 <div class="main" id="main">
 
@@ -265,6 +344,83 @@
 </div>
 
 <script>
+// ── API Key modal ──
+async function checkKeyStatus() {
+  try {
+    const res = await fetch('/key-status');
+    const data = await res.json();
+    setKeyActive(data.configured);
+    if (!data.configured) openKeyModal();
+  } catch {}
+}
+
+function setKeyActive(active) {
+  const btn = document.getElementById('key-btn');
+  const label = document.getElementById('key-btn-label');
+  btn.className = 'key-btn' + (active ? ' active' : '');
+  label.textContent = active ? 'API Key ✓' : 'Set API Key';
+}
+
+function openKeyModal() {
+  document.getElementById('key-modal').classList.add('open');
+  document.getElementById('modal-error').textContent = '';
+  setTimeout(() => document.getElementById('key-input').focus(), 60);
+}
+
+function closeKeyModal() {
+  document.getElementById('key-modal').classList.remove('open');
+  document.getElementById('key-input').value = '';
+  document.getElementById('modal-error').textContent = '';
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('key-modal')) closeKeyModal();
+}
+
+function toggleVis() {
+  const inp = document.getElementById('key-input');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+async function saveKey() {
+  const key = document.getElementById('key-input').value.trim();
+  if (!key) { document.getElementById('modal-error').textContent = 'Please paste your API key.'; return; }
+  const errEl = document.getElementById('modal-error');
+  const btn = document.getElementById('save-key-btn');
+  btn.disabled = true;
+  btn.textContent = 'Verifying…';
+  errEl.textContent = '';
+  try {
+    const res = await fetch('/set-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: key }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ detail: 'Unknown error' }));
+      errEl.textContent = data.detail || 'Failed to verify key.';
+      return;
+    }
+    setKeyActive(true);
+    closeKeyModal();
+    appendMessage('assistant', '✅ API key saved! You can now chat and run AI actions.');
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Verify & Save';
+  }
+}
+
+// Enter in key input triggers save
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('key-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveKey();
+    if (e.key === 'Escape') closeKeyModal();
+  });
+  checkKeyStatus();
+});
+
 // ── CodeMirror setup ──
 const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
   mode: 'python',
