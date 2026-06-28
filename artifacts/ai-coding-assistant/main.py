@@ -16,7 +16,6 @@ load_dotenv()
 
 MODEL = "gemini-2.0-flash"
 
-# Key is loaded from env at startup but can be updated at runtime via /set-key
 _api_key: str = os.environ.get("GEMINI_API_KEY", "")
 
 
@@ -70,8 +69,6 @@ async def set_key(req: SetKeyRequest):
     key = req.api_key.strip()
     if not key:
         raise HTTPException(status_code=400, detail="API key cannot be empty")
-    # Quick validation — Gemini keys start with AIza or are OAuth tokens
-    # We do a lightweight probe to confirm the key actually works
     test_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
     try:
         probe = urllib.request.urlopen(test_url, timeout=10)
