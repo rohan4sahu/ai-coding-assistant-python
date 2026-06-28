@@ -1,0 +1,154 @@
+Analyze the ENTIRE project and generate a complete technical project report.
+
+Do not summarize briefly. Be detailed.
+
+Use the following format.
+
+# 1. Project Overview
+
+* Project name
+* Purpose
+* Main goal
+* Problem it solves
+* Target users
+
+# 2. Features
+
+List every feature currently implemented.
+Explain exactly how each feature works.
+
+# 3. User Workflow
+
+Describe what happens from the moment the user opens the application until they leave.
+
+# 4. Tech Stack
+
+List all technologies used, including:
+
+* Frontend
+* Backend
+* APIs
+* Libraries
+* Frameworks
+* Deployment targets
+* State management
+* Syntax highlighting libraries
+* Markdown libraries
+* Any utilities
+
+# 5. Project Structure
+
+Explain every important file and folder.
+Describe the responsibility of each.
+
+# 6. Application Architecture
+
+Explain how data flows through the application.
+
+Include:
+
+* UI
+* API requests
+* Response handling
+* Error handling
+* Code execution
+* Chat system
+* State updates
+
+# 7. Gemini Integration
+
+Explain:
+
+* Which Gemini model is used
+* How prompts are generated
+* API request format
+* API response handling
+* Streaming or non-streaming
+* Error handling
+* Token handling
+
+# 8. Code Execution
+
+Explain exactly how Python code is executed.
+Include:
+
+* Execution environment
+* Output handling
+* Security
+* Limitations
+
+# 9. Current UI Components
+
+List every visible UI component.
+
+Include:
+
+* Buttons
+* Inputs
+* Panels
+* Cards
+* Status indicators
+* Badges
+* Toolbars
+* Dialogs
+* Toasts
+* Loaders
+
+# 10. Current Limitations
+
+List every known limitation.
+
+# 11. Missing Features
+
+List useful features that are NOT implemented.
+
+# 12. Performance
+
+Mention anything that could become a bottleneck.
+
+# 13. Security
+
+Explain how API keys are handled.
+Mention any security concerns.
+
+# 14. Code Quality
+
+Evaluate:
+
+* Folder organization
+* Component structure
+* Reusability
+* Readability
+* Maintainability
+
+# 15. Resume Description
+
+Write a professional 4–6 bullet point resume description for this project.
+
+# 16. GitHub README Summary
+
+Write a concise README overview.
+
+# 17. Future Improvements
+
+List improvements in priority order:
+
+* High Priority
+* Medium Priority
+* Low Priority
+
+# 18. Honest Evaluation
+
+Rate the project out of 10 for:
+
+* Beginner portfolio
+* College project
+* Resume project
+* Production readiness
+
+Finally, explain:
+
+* What makes this project unique.
+* What parts feel generic.
+* What should be removed.
+* What should be improved before publishing on GitHub and deploying to Vercel.
